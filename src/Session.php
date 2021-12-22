@@ -12,13 +12,17 @@ class Session
     protected $attributes;
     protected $original_attributes;
     protected $duration = 600;
-    protected $max_attempt_num = 5;
+    protected $duration_attempt_num = 3;
+    protected $header_real_ip_key = 'REMOTE_ADDR';
 
-    public function __construct($session_id, AdapterInterface $adapter)
+    public function __construct(AdapterInterface $adapter, $session_id, $header_real_ip_key, $duration, $duration_attempt_num)
     {
         $this->adapter = $adapter;
+        $this->header_real_ip_key = $header_real_ip_key;
+        $this->duration = $duration;
+        $this->duration_attempt_num = $duration_attempt_num;
         $attributes = $adapter->getSession($session_id);
-        $remaining = $this->_getIPRemaining($_SERVER['REMOTE_ADDR']);
+        $remaining = $this->_getIPRemaining($_SERVER[$this->header_real_ip_key]);
         if(empty($attributes) || strtotime($attributes['expired_time'])<time()){
             $session_id = md5(uniqid("", true).mt_rand(100, 999));
             $this->adapter->createSession($session_id, $remaining, time());
@@ -29,7 +33,6 @@ class Session
             $attributes['remaining'] = max(array($remaining,$attributes['remaining']));
             $this->_loadAttributes($attributes);
             $this->_freshenOriginalAttributes();
-            $this->createAttempt(0);
         }else{
             $attributes['remaining'] = max(array($remaining,$attributes['remaining']));
             $this->_loadAttributes($attributes);
@@ -49,7 +52,7 @@ class Session
 
     public function getAttempts()
     {
-        return $this->adapter->getSessionAttempts($this->getId(), $this->max_attempt_num);
+        return $this->adapter->getSessionAttempts($this->getId(), $this->duration_attempt_num);
     }
 
     public function createAttempt($status)
@@ -57,14 +60,14 @@ class Session
         if($status){
             $this->resetRemaining();
         }else{
-            $this->adapter->createAttempt($this->getId(), 0, time(), $_SERVER['REMOTE_ADDR']);
+            $this->adapter->createAttempt($this->getId(), 0, time(), $_SERVER[$this->header_real_ip_key]);
             $this->attributes->remaining = max(array($this->attributes->remaining - 1,0));
         }
     }
 
     public function resetRemaining()
     {
-        $this->attributes->remaining = $this->max_attempt_num;
+        $this->attributes->remaining = $this->duration_attempt_num;
     }
 
     public function trashData()
@@ -105,9 +108,9 @@ class Session
 
     private function _getIPRemaining($ip)
     {
-        $attempts = $this->adapter->getIPAttempts($ip, $this->max_attempt_num);
+        $attempts = $this->adapter->getIPAttempts($ip, $this->duration_attempt_num);
         if(empty($attempts)){
-            return $this->max_attempt_num;
+            return $this->duration_attempt_num;
         }
 
         $use = 0;
@@ -117,7 +120,7 @@ class Session
             }
             $use++;
         }
-        return max(array($this->max_attempt_num - $use , 0));
+        return max(array($this->duration_attempt_num - $use , 0));
     }
 
     public function __set($name, $value)

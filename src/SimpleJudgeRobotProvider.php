@@ -2,6 +2,8 @@
 
 namespace Jqqjj\LaravelSimpleJudgeRobot;
 
+use Illuminate\Support\Facades\Cookie;
+use Illuminate\Support\Facades\Request;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\DB;
 use Jqqjj\LaravelSimpleJudgeRobot\Adapter\DBTableGateway;
@@ -16,9 +18,10 @@ class SimpleJudgeRobotProvider extends ServiceProvider
     public function register()
     {
         $this->app->singleton('judgeRobot',function (){
-            $pdo = DB::connection()->getPdo();
-            $adapter = new DBTableGateway($pdo);
-            return new Manager($adapter);
+            $adapter = new DBTableGateway(DB::connection()->getPdo());
+            $m = new Manager($adapter, Cookie::get(Manager::$cookie_key, ''));
+            Cookie::queue(Manager::$cookie_key, $m->getSessionId(), $m->cookieLifetime / 60);
+            return $m;
         });
     }
 

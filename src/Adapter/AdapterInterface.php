@@ -12,4 +12,3 @@ interface AdapterInterface
     public function createAttempt($session_id, $status, $add_time, $ip);
     public function trashData();
 }
-
